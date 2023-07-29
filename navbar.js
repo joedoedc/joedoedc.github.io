@@ -1,7 +1,7 @@
 d3.select("#navbar")
   .append("a")
   .text("Home")
-  .attr("href", "Home.html")
+  .attr("href", "index.html")
   .style("margin-right", "10px");
 
 d3.select("#navbar")
