@@ -1,14 +1,178 @@
 <!DOCTYPE html>
 <html>
+<style>
+    .tooltip {
+        position: absolute;
+        text-align: center;
+        width: 80px;
+        height: 72px;
+        padding: 8px;
+        font: 12px sans-serif;
+        background: ste;
+        opacity: 1;
+        border: 1px solid black;
+        border-radius: 8px;
+        pointer-events: none;
+    }
+</style>
+
 <head>
-  <title>Page 1</title>
-  <script src="https://d3js.org/d3.v5.min.js"></script>
-  <script src="https://unpkg.com/d3-annotation@2.3.1/build/d3-annotation.min.js"></script>
-  <script src="https://unpkg.com/topojson-client@3.0.0/dist/topojson.min.js"></script>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-annotation/2.3.1/d3-annotation.min.js"></script>
 </head>
+
 <body>
-  <h1>Page 1</h1>
-  <nav id="navbar"></nav>
-  <script src="navbar.js"></script>
+    <h2>Worldwide Gender Wage Gap (2020)</h2>
+
+    <div style="width: 1040px;">
+        <p>The gender wage gap in the United States, when compared to other developed nations, is quite significant, 
+            indicating a higher level of pay disparity. Although progress has been made, the U.S. still lags behind countries like Norway, New Zealand, and Denmark, 
+            where more comprehensive policies have contributed to narrower wage gaps.</p>
+    <svg id="my_dataviz" width="1000" height="500"></svg>
+
+    <script>
+        // Read CSV file
+        
+        var fileLocation = "https://raw.githubusercontent.com/joedoedc/joedoedc.github.io/main/data.csv"
+        var localFileLocation = "data.csv"
+        
+        d3.csv(localFileLocation).then(function (csvData) {
+            var data = [];
+            csvData.forEach(function (row) {
+                if (row["2020"]) {
+                    data.push({
+                        country: row["country"],
+                        value: parseFloat(row["2020"])
+                    });
+                }
+            });
+
+            // Sort data
+            data.sort(function (a, b) {
+                return a.value - b.value;
+            });
+
+            // Define the color scale
+            var color = d3.scaleOrdinal()
+                .domain(data.map(function (d) { return d.country; }))
+                .range(d3.schemeCategory10);
+
+            // Define margins
+            var margin = { top: 40, right: 30, bottom: 40, left: 90 },  // increase top margin to make space for title
+                width = 960 - margin.left - margin.right,
+                height = 500 - margin.top - margin.bottom;
+
+            // Append SVG object to the body of the page
+            var svg = d3.select("#my_dataviz")
+                .append("svg")
+                .attr("width", width + margin.left + margin.right)
+                .attr("height", height + margin.top + margin.bottom)
+                .append("g")
+                .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+            // Add chart title
+            // svg.append("text")
+            //     .attr("x", width / 2)
+            //     .attr("y", 0 - (margin.top / 2))
+            //     .attr("text-anchor", "middle")
+            //     .style("font-size", "20px")
+            //     .text("2020");
+
+            // Initialize scales
+var xScale = d3.scaleLinear()
+    .domain([0, d3.max(data, function (d) { return d.value; }) * 1.1])
+    .range([0, width]);
+svg.append("g")
+    .attr("transform", "translate(0," + height + ")")
+    .call(d3.axisBottom(xScale));
+    
+// Add X axis label:
+svg.append("text")
+    .attr("text-anchor", "end")
+    .attr("x", width/2)
+    .attr("y", height + margin.bottom - 5)
+    .text("Gender Wage Gap: Cents Per Dollar Difference");
+
+var yScale = d3.scaleBand()
+    .domain(data.map(function (d) { return d.country; }))
+    .range([0, height])
+    .padding(.1);
+svg.append("g")
+    .call(d3.axisLeft(yScale));
+
+// Add Y axis label:
+// svg.append("text")
+//     .attr("text-anchor", "end")
+//     .attr("transform", "rotate(-90)")
+//     .attr("y", -margin.left + 20)
+//     .attr("x", -margin.top)
+//     .text("Country")
+
+            // Add a tooltip
+            var tooltip = d3.select("body")
+                .append("div")
+                .style("position", "absolute")
+                .style("visibility", "hidden")
+                .style("background", "white")
+                .style("border", "solid")
+                .style("border-width", "1px")
+                .style("border-radius", "5px")
+                .style("padding", "10px");
+
+            // Draw bars and add mouseover functionality
+            var bars = svg.selectAll(".bar")
+                .data(data)
+                .enter()
+                .append("rect")
+                .attr("class", "bar")
+                .attr("x", xScale(0))
+                .attr("y", function (d) { return yScale(d.country); })
+                .attr("width", function (d) { return xScale(d.value); })
+                .attr("height", yScale.bandwidth())
+                .style("fill", function (d) { return color(d.country); }) // use the color scale here
+                .on("mouseover", function (event, d) {
+                    tooltip.html("Country: " + d.country + "<br/>" + "Difference: " + d.value + " cents")
+                        .style("visibility", "visible");
+                })
+                .on("mousemove", function (event) {
+                    tooltip.style("top", (event.pageY - 10) + "px")
+                        .style("left", (event.pageX + 10) + "px");
+                })
+                .on("mouseout", function () { return tooltip.style("visibility", "hidden"); });
+
+            // Find United States and its rank
+            var usData = data.find(function (d) { return d.country === "United States"; });
+            var usRank = data.indexOf(usData) + 1;
+
+            // Add annotation for United States
+            const annotations = [
+                {
+                    type: d3.annotationLabel,
+                    note: {
+                        title: "United States",
+                        label: "Ranked " + usRank + " out of " + data.length + " countries"
+                    },
+                    x: xScale(usData.value),
+                    y: yScale(usData.country) + yScale.bandwidth() / 2,
+                    dy: -5,
+                    dx: 79
+                }
+            ];
+
+            const makeAnnotations = d3.annotation()
+                .type(d3.annotationLabel)
+                .annotations(annotations);
+
+            svg.append("g")
+                .attr("class", "annotation-group")
+                .call(makeAnnotations);
+        });
+    </script>
+
+</div>
+
+<button onclick="location.href='Page2.html'" type="button">Next Page</button>
+
 </body>
+
 </html>
