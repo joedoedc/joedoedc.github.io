@@ -1,14 +1,256 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
-  <title>Page 2</title>
-  <script src="https://d3js.org/d3.v5.min.js"></script>
-  <script src="https://unpkg.com/d3-annotation@2.3.1/build/d3-annotation.min.js"></script>
-  <script src="https://unpkg.com/topojson-client@3.0.0/dist/topojson.min.js"></script>
+    <meta charset="UTF-8">
+    <title>Line Chart</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3-annotation/2.3.1/d3-annotation.min.js"></script>
+    <style>
+    .container {
+        display: flex;
+        justify-content: center;
+    }
+
+    #checkboxes {
+        display: flex;
+        flex-wrap: wrap;
+        max-height: 500px;
+        width: 25%; /* Adjust the width */
+        margin-right: 10px; /* Create some space between checkbox section and the chart */
+    }
+
+    #checkboxes div {
+        width: 100%; /* Full width */
+        padding: 2px;
+    }
+
+    #checkboxes input, #checkboxes button {
+        max-width: 50%; /* Control the width of checkboxes and buttons */
+    }
+
+    #checkboxes label {
+        font-size: 0.8em; /* Reduce font size */
+    }
+        .axis path,
+        .axis line {
+            fill: none;
+            stroke: black;
+            shape-rendering: crispEdges;
+        }
+
+        .dot {
+            stroke: #000;
+        }
+
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            width: 100px;
+            height: 80px;
+            padding: 2px;
+            font: 12px sans-serif;
+            background: white;
+            border: 0px;
+            border-radius: 8px;
+            pointer-events: none;
+            opacity: 1;
+            border: 1px solid black;
+        }
+    </style>
 </head>
+
 <body>
-  <h1>Page 2</h1>
-  <nav id="navbar"></nav>
-  <script src="navbar.js"></script>
+    <div style="width: 1140px;">
+    <h2 style="text-align:center;">Worldwide Gender Wage Gap (2005-2021)</h2>
+    <p> This script visualizes the gender wage gap across 36 different countries from 2005 to 2021, 
+        represented through an interactive line graph. 
+        Each line represents a country, showing the change in gender wage gap over the years, 
+        with interactive elements that allow the viewer to highlight or hide specific countries. 
+        Additionally, the graph provides tooltips that display detailed information, 
+        including the exact wage gap and a country's rank compared to others, at each data point on hover.
+    Countries can be selected and de-selected at will.</p>
+
+    <div class="container">
+        <div id="checkboxes" class="checkboxes"></div>
+        <div id="chart"></div>
+    </div>
+    <script>
+        var fileLocation = "https://raw.githubusercontent.com/joedoedc/joedoedc.github.io/main/data.csv";
+        var localFileLocation = "data.csv";
+    
+        d3.csv(localFileLocation).then(function (csvData) {
+            var years = csvData.columns.slice(1);
+            var data = csvData.map(function (row) {
+                var countryData = { country: row.country };
+                years.forEach(function (year) {
+                    countryData[year] = row[year] ? +row[year] : null;
+                });
+                return countryData;
+            });
+            var countries = data.map(function (d) { return d.country; });
+            var margin = { top: 20, right: 40, bottom: 50, left: 40 },
+                width = 960 - margin.left - margin.right,
+                height = 600 - margin.top - margin.bottom;
+            var x = d3.scalePoint().domain(years).range([0, width]);
+            var y = d3.scaleLinear().domain([0, d3.max(data, function (c) { return d3.max(years, function (d) { return c[d]; }); })]).range([height, 0]);
+            var color = d3.scaleOrdinal().domain(countries).range(d3.schemeCategory10);
+            var line = d3.line().defined(function (d) { return !isNaN(d.value); }).x(function (d) { return x(d.year); }).y(function (d) { return y(d.value); });
+    
+            var svg = d3.select("#chart").append("svg").attr("width", width + margin.left + margin.right).attr("height", height + margin.top + margin.bottom).append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+    
+            svg.append("g").attr("class", "x axis").attr("transform", "translate(0," + height + ")").call(d3.axisBottom(x));
+            svg.append("g").attr("class", "y axis").call(d3.axisLeft(y));
+            svg.append("text")
+          .attr("transform", "rotate(-90)")
+          .attr("y", 0 - margin.left)
+          .attr("x",0 - (height / 2))
+          .attr("dy", "1em")
+          .style("text-anchor", "middle")
+          .text("Gender Wage Gap: Cents Per Dollar Difference");
+           
+          
+          svg.append("text")             
+          .attr("transform", "translate(" + (width/2) + " ," + (height + margin.top + 12) + ")")
+          .style("text-anchor", "middle")
+          .text("Year");
+          
+          
+          var tooltip = d3.select("body").append("div").attr("class", "tooltip").style("opacity", 0);
+    
+            var country = svg.selectAll(".country").data(data).enter().append("g").attr("class", "country");
+    
+            country.append("path")
+                .attr("class", "line")
+                .attr("d", function (d) {
+                    return line(years.map(function (year) {
+                        return { year: year, value: d[year] };
+                    }).filter(function (d) { return d.value != null; }));
+                })
+                .style("stroke", function (d) { return color(d.country); })
+                .style("fill", "none");
+    
+            country.selectAll(".dot")
+                .data(function (d) { return years.map(function (year) { return { year: year, value: d[year], country: d.country }; }).filter(function (d) { return d.value != null; }); })
+                .enter().append("circle")
+                .attr("class", "dot")
+                .attr("cx", line.x())
+                .attr("cy", line.y())
+                .attr("r", 3.5)
+                .style("fill", function (d) { return color(d.country); })
+                .on("mouseover", function (event, d) {
+                    var rankedCountries = data.filter(function (e) { return e[d.year] != null; }).sort(function (a, b) { return a[d.year] - b[d.year]; });
+                    var rank = rankedCountries.findIndex(function (e) { return e.country == d.country; }) + 1;
+                    var totalCountries = rankedCountries.length;
+                    tooltip.transition().duration(200).style("opacity", .9);
+                    tooltip.html("Country: " + d.country + "<br/>Year: " + d.year + "<br/>Value: " + d.value + "<br/>Rank: " + rank + "/" + totalCountries)
+                        .style("left", (event.pageX) + "px").style("top", (event.pageY - 28) + "px");
+                })
+                .on("mouseout", function (d) {
+                    tooltip.transition().duration(500).style("opacity", 0);
+                });
+    
+            var checkboxes = d3.select("#checkboxes").selectAll("div").data(countries).enter().append("div");
+    
+            checkboxes.append("input")
+                .attr("type", "checkbox")
+                .attr("id", function (d, i) { return "cb" + i; })
+                .attr("checked", true)
+                .on("change", function (event, d) {
+                    var isChecked = event.target.checked;
+                    if (isChecked) {
+                        var newCountry = svg.append("g")
+                            .datum(data.find(function(e) { return e.country === d; }))
+                            .attr("class", "country");
+                        newCountry.append("path")
+                            .attr("class", "line")
+                            .attr("d", function (d) {
+                                return line(years.map(function (year) {
+                                    return { year: year, value: d[year] };
+                                }).filter(function (d) { return d.value != null; }));
+                            })
+                            .style("stroke", function (d) { return color(d.country); })
+                            .style("fill", "none");
+    
+                        newCountry.selectAll(".dot")
+                            .data(function (d) { return years.map(function (year) { return { year: year, value: d[year], country: d.country }; }).filter(function (d) { return d.value != null; }); })
+                            .enter().append("circle")
+                            .attr("class", "dot")
+                            .attr("cx", line.x())
+                            .attr("cy", line.y())
+                            .attr("r", 3.5)
+                            .style("fill", function (d) { return color(d.country); })
+                            .on("mouseover", function (event, d) {
+                                var rankedCountries = data.filter(function (e) { return e[d.year] != null; }).sort(function (a, b) { return a[d.year] - b[d.year]; });
+                                var rank = rankedCountries.findIndex(function (e) { return e.country == d.country; }) + 1;
+                                var totalCountries = rankedCountries.length;
+                                tooltip.transition().duration(200).style("opacity", .9);
+                                tooltip.html("Country: " + d.country + "<br/>Year: " + d.year + "<br/>Value: " + d.value + "<br/>Rank: " + rank + "/" + totalCountries)
+                                    .style("left", (event.pageX) + "px").style("top", (event.pageY - 28) + "px");
+                            })
+                            .on("mouseout", function (d) {
+                                tooltip.transition().duration(500).style("opacity", 0);
+                            });
+                    } else {
+                        svg.selectAll(".country").filter(function (e) { return e.country === d; }).remove();
+                    }
+                });
+    
+            checkboxes.append("label").attr("for", function (d, i) { return "cb" + i; }).text(function (d) { return d; });
+    
+            d3.select("#checkboxes").append("button")
+                .text("Select All")
+                .on("click", function () {
+                    d3.selectAll("input[type=checkbox]").property("checked", true);
+                    svg.selectAll(".country").remove();
+                    data.forEach(function (d) {
+                        var newCountry = svg.append("g")
+                            .datum(d)
+                            .attr("class", "country");
+                        newCountry.append("path")
+                            .attr("class", "line")
+                            .attr("d", function (d) {
+                                return line(years.map(function (year) {
+                                    return { year: year, value: d[year] };
+                                }).filter(function (d) { return d.value != null; }));
+                            })
+                            .style("stroke", function (d) { return color(d.country); })
+                            .style("fill", "none");
+    
+                        newCountry.selectAll(".dot")
+                            .data(function (d) { return years.map(function (year) { return { year: year, value: d[year], country: d.country }; }).filter(function (d) { return d.value != null; }); })
+                            .enter().append("circle")
+                            .attr("class", "dot")
+                            .attr("cx", line.x())
+                            .attr("cy", line.y())
+                            .attr("r", 3.5)
+                            .style("fill", function (d) { return color(d.country); })
+                            .on("mouseover", function (event, d) {
+                                var rankedCountries = data.filter(function (e) { return e[d.year] != null; }).sort(function (a, b) { return a[d.year] - b[d.year]; });
+                                var rank = rankedCountries.findIndex(function (e) { return e.country == d.country; }) + 1;
+                                var totalCountries = rankedCountries.length;
+                                tooltip.transition().duration(200).style("opacity", .9);
+                                tooltip.html("Country: " + d.country + "<br/>Year: " + d.year + "<br/>Value: " + d.value + "<br/>Rank: " + rank + "/" + totalCountries)
+                                    .style("left", (event.pageX) + "px").style("top", (event.pageY - 28) + "px");
+                            })
+                            .on("mouseout", function (d) {
+                                tooltip.transition().duration(500).style("opacity", 0);
+                            });
+                    });
+                });
+    
+            d3.select("#checkboxes").append("button")
+                .text("Deselect All")
+                .on("click", function () {
+                    d3.selectAll("input[type=checkbox]").property("checked", false);
+                    svg.selectAll(".country").remove();
+                });
+        }).catch(function (error) {
+            console.log(error);
+        });
+    </script>
+    
+</div>
 </body>
+
 </html>

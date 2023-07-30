@@ -36,7 +36,7 @@
         var fileLocation = "https://raw.githubusercontent.com/joedoedc/joedoedc.github.io/main/data.csv"
         var localFileLocation = "data.csv"
         
-        d3.csv(localFileLocation).then(function (csvData) {
+        d3.csv(fileLocation).then(function (csvData) {
             var data = [];
             csvData.forEach(function (row) {
                 if (row["2020"]) {
